@@ -4,14 +4,10 @@
 #![feature(abi_avr_interrupt)]
 
 mod int;
+mod network;
 mod panic;
 
 const BAUDRATE: u32 = 57600;
-
-use crc::{Crc, CRC_32_BZIP2};
-const CRC_ALGORITHM: Crc<u32> = Crc::<u32>::new(&CRC_32_BZIP2);
-
-static mut counter: u32 = 0;
 
 use arduino_hal::{
     delay_ms,
@@ -51,9 +47,10 @@ fn main() -> ! {
 
     write_init_data(&mut serial);
 
+    let mut dl_layer = network::DataLinkLayer::default();
+
     loop {
         let mut last_reset: u64 = 0;
-        let mut cur_frame = MsgFrame::default();
 
         'recv_loop: loop {
             avr_device::asm::sleep();
@@ -67,7 +64,8 @@ fn main() -> ! {
                     if uptime_ms() - last_reset > 1000 {
                         l_status.blink(20);
 
-                        cur_frame = MsgFrame::default();
+                        // Reset the current frame in flight
+                        dl_layer.reset();
                         last_reset = uptime_ms();
                     }
 
@@ -75,47 +73,18 @@ fn main() -> ! {
                 }
             };
 
-            match cur_frame.in_len {
-                0 => {
-                    cur_frame.command = byte;
-                    cur_frame.in_len += 1;
-                }
-                1 => {
-                    cur_frame.len = byte;
-                    for _ in 0..cur_frame.len {
+            //l_status.toggle();
+            match dl_layer.handle_byte(byte) {
+                Some(frame) => {
+                    if let Some(frame) = frame.crc_guard() {
                         l_ok.blink(50);
                         delay_ms(50);
-                    }
-                    cur_frame.in_len += 1;
-                }
-                _ => {
-                    let payload_len = 1 + cur_frame.len as u16;
-                    let crc_len = payload_len + 4;
-                    if cur_frame.in_len <= payload_len {
-                        //Payload
-                    } else if cur_frame.in_len <= crc_len {
-                        //CRC
-                    }
-
-                    if cur_frame.in_len == crc_len {
-                        match cur_frame.command {
-                            0xfe => {
-                                serial.write_byte(0xfe);
-                            }
-                            0xfd => {
-                                l_ok.blink(1000);
-                            }
-                            _ => {}
-                        }
-
-                        l_err.set_low();
-                        l_status.set_low();
-
-                        cur_frame = MsgFrame::default();
                     } else {
-                        cur_frame.in_len += 1;
+                        l_err.blink(500);
+                        delay_ms(50);
                     }
                 }
+                _ => {}
             }
         }
     }
