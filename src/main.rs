@@ -76,7 +76,7 @@ fn main() -> ! {
             //l_status.toggle();
             match dl_layer.handle_byte(byte) {
                 Some(frame) => {
-                    if let Some(frame) = frame.crc_guard() {
+                    if let Some(_frame) = frame.crc_guard() {
                         l_ok.blink(50);
                         delay_ms(50);
                     } else {

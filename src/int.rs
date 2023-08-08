@@ -1,9 +1,11 @@
 use arduino_hal::Peripherals;
 use avr_device::atmega2560::USART0;
 
-static mut ms_running: u64 = 0;
+/// The time this system is running in milliseconds
+static mut MS_RUNNING: u64 = 0;
+/// Returns the current uptime in milliseconds
 pub fn uptime_ms() -> u64 {
-    unsafe { ms_running }
+    unsafe { MS_RUNNING }
 }
 
 pub struct UARTBuffer {
@@ -39,17 +41,18 @@ impl UARTBuffer {
 }
 
 pub struct UART0 {}
+#[allow(dead_code)]
 impl UART0 {
     pub fn available() -> u8 {
-        unsafe { usart_0_buffer.available() }
+        unsafe { USART_0_BUFFER.available() }
     }
 
     pub fn pop() -> Option<u8> {
-        unsafe { usart_0_buffer.pop() }
+        unsafe { USART_0_BUFFER.pop() }
     }
 }
 
-pub static mut usart_0_buffer: UARTBuffer = UARTBuffer {
+pub static mut USART_0_BUFFER: UARTBuffer = UARTBuffer {
     buffer: [0; u8::MAX as usize + 1],
     pos_in: 0,
     pos_out: 0,
@@ -74,11 +77,11 @@ fn USART0_RX() {
     let byte: u8 = udr.read().bits();
 
     unsafe {
-        usart_0_buffer.push(byte);
+        USART_0_BUFFER.push(byte);
     }
 }
 
 #[avr_device::interrupt(atmega2560)]
 fn TIMER1_COMPA() {
-    unsafe { ms_running += 1 };
+    unsafe { MS_RUNNING += 1 };
 }
