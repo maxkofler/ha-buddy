@@ -24,29 +24,11 @@ use arduino_hal::{
 
 use int::{uptime_ms, UART0};
 
-struct MsgFrame {
-    command: u8,
-    len: u8,
-    payload: [u8; u8::MAX as usize + 1],
-    crc: u32,
-    in_len: u16,
-}
-
-impl Default for MsgFrame {
-    fn default() -> Self {
-        Self {
-            command: 0,
-            len: 0,
-            payload: [0; u8::MAX as usize + 1],
-            crc: 0,
-            in_len: 0,
-        }
-    }
-}
-
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
+    int::setup_timer(&dp);
+
     let pins = arduino_hal::pins!(dp);
 
     let mut serial = arduino_hal::Usart::new(
@@ -58,22 +40,7 @@ fn main() -> ! {
     serial.listen(Event::RxComplete);
     serial.flush();
 
-    //
-    // Setup timer
-    //
-
-    let tmr1 = dp.TC1;
-    tmr1.tccr1a.write(|w| w.wgm1().bits(0b00));
-    tmr1.tccr1b.write(|w| w.cs1().direct().wgm1().bits(0b01));
-    tmr1.ocr1a.write(|w| w.bits(15624));
-
-    // Enable the timer interrupt
-    tmr1.timsk1.write(|w| w.ocie1a().set_bit());
-
-    //
-    //
-    //
-
+    // Enable interrupts
     unsafe {
         avr_device::interrupt::enable();
     }
