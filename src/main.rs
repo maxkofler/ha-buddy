@@ -45,8 +45,6 @@ fn main() -> ! {
     let mut l_ok = pins.d12.into_output().downgrade();
     let mut l_err = pins.d11.into_output().downgrade();
 
-    write_init_data(&mut serial);
-
     let mut dl_layer = network::DataLinkLayer::default();
 
     loop {
@@ -99,11 +97,5 @@ impl Blink for Pin<Output, Dynamic> {
         self.set_high();
         delay_ms(ms);
         self.set_low();
-    }
-}
-
-fn write_init_data<T>(serial: &mut Usart0<T>) {
-    for _ in 0..10 {
-        serial.write_byte(0xff);
     }
 }
