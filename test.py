@@ -3,6 +3,9 @@ import sys
 
 import time
 
+from crc import Calculator, Crc32
+crc_calculator = Calculator(Crc32.BZIP2)
+
 if len(sys.argv) <= 1:
     print("Need tty!")
     exit(-1)
@@ -10,31 +13,28 @@ if len(sys.argv) <= 1:
 ser = serial.Serial(sys.argv[1], baudrate=57600)
 ser.timeout = 10
 
-reset_data = bytes([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
+def calc_crc(data: bytes) -> bytes:
+    global crc_calculator
+    checksum = crc_calculator.checksum(data)
+    return checksum.to_bytes(4, byteorder="little")
 
-print("Waiting for initialization...")
-data = ser.read(10)
-if (data != reset_data):
-    print("Initialization data was wrong!")
-    exit(-1)
+def create_msg(data: [int]) -> bytes:
+    data = bytes(data)
+    crc = bytearray(calc_crc(data))
+    return data + crc
 
-# Resetting
-print("Resetting with \"{}\"".format(reset_data))
-ser.write(reset_data)
-ser.flush()
 
-print("Waiting for initialization...")
-data = ser.read(10)
-print("Data: {}".format(data))
-if (data != reset_data):
-    print("Initialization data was wrong!")
-    exit(-1)
+print("Waiting for slave to come online...")
+time.sleep(1)
 
-print("Sending echo...")
-ser.write(bytes([0xfe]))
-data = ser.read(1)
-if (data[0] != 0xfe):
-    print("Echo failed")
-    exit(-1)
+print("Go")
+ser.write(create_msg([0x00, 0x01, 0x02, 0x00, 0x02]))
 
-print("Echo done")
+ser.write(create_msg([0x00, 0x01, 0x02, 0x00, 0x02]))
+
+# Wrong frame (additional byte)
+ser.write(bytes([0x00]))
+ser.write(create_msg([0x00, 0x01, 0x02, 0x00, 0x02]))
+
+time.sleep(2)
+ser.write(create_msg([0x00, 0x01, 0x02, 0x00, 0x02]))
