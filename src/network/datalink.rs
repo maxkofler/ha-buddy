@@ -37,6 +37,11 @@ impl DataFrame {
         digest.finalize()
     }
 
+    /// Updates the internal CRC to the appropriate value for the frame in this state
+    pub fn update_crc(&mut self) {
+        self.crc = self.crc();
+    }
+
     /// Checks if the received CRC and the calculated CRC are the same
     /// # Returns
     /// `true` if the CRC is valid, else `false`
@@ -44,11 +49,23 @@ impl DataFrame {
         self.crc == self.crc()
     }
 
-    /// Moves this value, checks if the CRC is valid and returns it, else discards the frame
+    /// Moves this value, checks if the CRC is valid and returns the frame, else discards it
     /// # Returns
     /// `Some(Self)` if the CRC is valid, else `None`
     pub fn crc_guard(self) -> Option<Self> {
         match self.check_crc() {
+            true => Some(self),
+            false => None,
+        }
+    }
+
+    /// Moves this value, checks if the address is the desired one and returns the frame, else discards it
+    /// # Arguments
+    /// * `addr` - The address to match against
+    /// # Returns
+    /// `Some(Self)` if the address matches, else `None`
+    pub fn addr_guard(self, addr: u16) -> Option<Self> {
+        match self.addr == addr {
             true => Some(self),
             false => None,
         }
