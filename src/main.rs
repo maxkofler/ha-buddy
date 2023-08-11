@@ -39,7 +39,7 @@ fn main() -> ! {
     serial.flush();
 
     let mut handler_pins = handler::HandlerPins {
-        l_status: pins.d12.into_output().downgrade(),
+        l_status: pins.d13.into_output().downgrade(),
     };
 
     // Enable interrupts
