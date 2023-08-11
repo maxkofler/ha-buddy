@@ -1,27 +1,23 @@
 # HA-Buddy protocol
 
-Master-Slave based
+Every frame is a protocol message. The maximum message length is `256` bytes.
 
-## Initialization
+# Message structure:
 
-Slave sends following data string to the master once it is ready:
+`[command: u16; ...]`
 
-```
-[0xff; 10]
-```
-
-## Reset
-
-The slave waits for the following sequence:
-
-```
-[0xff; 10]
-```
-
-It is possible to send more that `10` bytes, the slave will discard them anyway
+The rest of the message body is optional for every command.
 
 # Commands:
 
-- `0xfe` - Echo
+### `0x00` - Echo
 
+Echo back a specific value provided by the master
 
+**Request**
+
+`[0x00; 0x<data>]`
+
+**Response:**
+
+`[0x<data>]`
