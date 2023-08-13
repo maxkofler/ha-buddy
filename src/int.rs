@@ -1,12 +1,4 @@
-use arduino_hal::Peripherals;
 use avr_device::atmega2560::USART0;
-
-/// The time this system is running in milliseconds
-static mut MS_RUNNING: u64 = 0;
-/// Returns the current uptime in milliseconds
-pub fn uptime_ms() -> u64 {
-    unsafe { MS_RUNNING }
-}
 
 pub struct UARTBuffer {
     buffer: [u8; u8::MAX as usize + 1],
@@ -60,16 +52,6 @@ pub static mut USART_0_BUFFER: UARTBuffer = UARTBuffer {
 
 impl UARTBuffer {}
 
-pub fn setup_timer(dp: &Peripherals) {
-    let tmr1 = &dp.TC1;
-    tmr1.tccr1a.write(|w| w.wgm1().bits(0b00));
-    tmr1.tccr1b.write(|w| w.cs1().direct().wgm1().bits(0b01));
-    tmr1.ocr1a.write(|w| w.bits(15624));
-
-    // Enable the timer interrupt
-    tmr1.timsk1.write(|w| w.ocie1a().set_bit());
-}
-
 #[avr_device::interrupt(atmega2560)]
 #[allow(non_snake_case)]
 fn USART0_RX() {
@@ -79,9 +61,4 @@ fn USART0_RX() {
     unsafe {
         USART_0_BUFFER.push(byte);
     }
-}
-
-#[avr_device::interrupt(atmega2560)]
-fn TIMER1_COMPA() {
-    unsafe { MS_RUNNING += 1 };
 }
