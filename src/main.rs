@@ -42,6 +42,12 @@ fn main() -> ! {
         l_status: pins.d13.into_output().downgrade(),
     };
 
+    let mut p_de = pins.d2.into_output().downgrade();
+    let mut p_re = pins.d3.into_output().downgrade();
+
+    p_re.set_low();
+    p_de.set_low();
+
     // Enable interrupts
     unsafe {
         avr_device::interrupt::enable();
@@ -50,27 +56,12 @@ fn main() -> ! {
     let mut dl_layer = network::DataLinkLayer::default();
 
     loop {
-        let mut last_reset: u64 = 0;
-
         'recv_loop: loop {
             avr_device::asm::sleep();
 
             let byte = match UART0::pop() {
-                Some(b) => {
-                    last_reset = uptime_ms();
-                    b
-                }
-                None => {
-                    if (uptime_ms() - last_reset) > 1000 {
-                        delay_ms(1);
-
-                        last_reset = uptime_ms();
-                        // Reset the current frame in flight
-                        dl_layer.reset();
-                    }
-
-                    continue 'recv_loop;
-                }
+                Some(b) => b,
+                None => continue 'recv_loop,
             };
 
             match dl_layer.handle_byte(byte) {
@@ -79,25 +70,19 @@ fn main() -> ! {
                         if let Some(frame) = frame.addr_guard(MY_ADDR) {
                             match handler::handle_frame(frame, &mut handler_pins) {
                                 Some(mut frame) => {
-                                    // Calculate the CRC and set the address
-                                    frame.update_crc();
-                                    frame.addr = MY_ADDR;
+                                    // Set addresses
+                                    frame.src = MY_ADDR;
+                                    frame.dst = 0;
 
-                                    // Write the address
-                                    serial.write_byte((frame.addr & 0xff) as u8);
-                                    serial.write_byte((frame.addr >> 8 & 0xff) as u8);
+                                    // Enable RS485 driver
+                                    p_de.set_high();
 
-                                    // Write the payload
-                                    serial.write_byte(frame.payload_len);
-                                    for i in 0..frame.payload_len {
-                                        serial.write_byte(frame.payload[i as usize]);
-                                    }
+                                    frame.send(&mut serial).unwrap();
 
-                                    // Write the CRC
-                                    serial.write_byte((frame.crc & 0xff) as u8);
-                                    serial.write_byte((frame.crc >> 8 & 0xff) as u8);
-                                    serial.write_byte((frame.crc >> 16 & 0xff) as u8);
-                                    serial.write_byte((frame.crc >> 24 & 0xff) as u8);
+                                    // Flush contents, wait for data send and disable RS485 driver
+                                    serial.flush();
+                                    delay_ms(1);
+                                    p_de.set_low();
                                 }
                                 None => {}
                             }
