@@ -1,4 +1,6 @@
 use crc::{Crc, CRC_32_BZIP2};
+use embedded_hal::serial::Write;
+use nb::block;
 
 const CRC_ALGORITHM: Crc<u32> = Crc::<u32>::new(&CRC_32_BZIP2);
 
@@ -72,6 +74,42 @@ impl DataFrame {
             true => Some(self),
             false => None,
         }
+    }
+
+    /// Sends this frame to the provided writer, consumes this frame
+    /// # Arguments
+    /// * `serial` - The writer to send this frame to
+    pub fn send<S>(mut self, serial: &mut S) -> nb::Result<(), S::Error>
+    where
+        S: Write<u8>,
+    {
+        self.update_crc();
+
+        // Write start bytes
+        block!(serial.write(0xaa))?;
+        block!(serial.write(0x55))?;
+
+        // Write src address
+        block!(serial.write((self.src & 0xff) as u8))?;
+        block!(serial.write((self.src >> 8 & 0xff) as u8))?;
+
+        // Write dst address
+        block!(serial.write((self.dst & 0xff) as u8))?;
+        block!(serial.write((self.dst >> 8 & 0xff) as u8))?;
+
+        // Write payload
+        block!(serial.write(self.payload_len))?;
+        for i in 0..self.payload_len {
+            block!(serial.write(self.payload[i as usize]))?;
+        }
+
+        // Write CRC
+        block!(serial.write((self.crc & 0xff) as u8))?;
+        block!(serial.write((self.crc >> 8 & 0xff) as u8))?;
+        block!(serial.write((self.crc >> 16 & 0xff) as u8))?;
+        block!(serial.write((self.crc >> 24 & 0xff) as u8))?;
+
+        Ok(())
     }
 }
 
