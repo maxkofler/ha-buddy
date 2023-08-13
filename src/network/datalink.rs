@@ -5,8 +5,10 @@ const CRC_ALGORITHM: Crc<u32> = Crc::<u32>::new(&CRC_32_BZIP2);
 /// A frame from the Data Link Layer
 #[derive(Clone)]
 pub struct DataFrame {
+    /// The source address
+    pub src: u16,
     /// The destination address
-    pub addr: u16,
+    pub dst: u16,
     /// The amount of bytes in the payload
     pub payload_len: u8,
     /// The payload itself
@@ -27,7 +29,8 @@ impl DataFrame {
     /// Generates a CRC32 - BZIP2 for this DataFrame
     pub fn crc(&self) -> u32 {
         let mut digest = CRC_ALGORITHM.digest();
-        digest.update(&[(self.addr & 0xff) as u8, (self.addr >> 8 & 0xff) as u8]);
+        digest.update(&[(self.src & 0xff) as u8, (self.src >> 8 & 0xff) as u8]);
+        digest.update(&[(self.dst & 0xff) as u8, (self.dst >> 8 & 0xff) as u8]);
         digest.update(&[self.payload_len]);
 
         for pos in 0..self.payload_len {
@@ -59,13 +62,13 @@ impl DataFrame {
         }
     }
 
-    /// Moves this value, checks if the address is the desired one and returns the frame, else discards it
+    /// Moves this value, checks if the destination address is the desired one and returns the frame, else discards it
     /// # Arguments
-    /// * `addr` - The address to match against
+    /// * `addr` - The destination address to match against
     /// # Returns
     /// `Some(Self)` if the address matches, else `None`
     pub fn addr_guard(self, addr: u16) -> Option<Self> {
-        match self.addr == addr {
+        match self.dst == addr {
             true => Some(self),
             false => None,
         }
@@ -81,30 +84,52 @@ impl DataLinkLayer {
     pub fn handle_byte(&mut self, data: u8) -> Option<DataFrame> {
         match self.cur_frame.in_len {
             0 => {
-                // addr low byte
-                self.cur_frame.addr = data as u16;
+                // Start byte 0: 0xaa
+                if data != 0xaa {
+                    self.reset();
+                    return None;
+                }
             }
             1 => {
-                // addr low byte
-                self.cur_frame.addr |= (data as u16) << 8;
+                // Start byte 1: 0x55
+                if data != 0x55 {
+                    self.reset();
+                    return None;
+                }
             }
             2 => {
+                // src low byte
+                self.cur_frame.src = data as u16;
+            }
+            3 => {
+                // src high byte
+                self.cur_frame.src |= (data as u16) << 8;
+            }
+            4 => {
+                // dst low byte
+                self.cur_frame.dst = data as u16;
+            }
+            5 => {
+                // dst high byte
+                self.cur_frame.dst |= (data as u16) << 8;
+            }
+            6 => {
                 // len
                 self.cur_frame.payload_len = data;
             }
             _ => {
                 // The index of the last payload byte
-                let payload_last = 2 + self.cur_frame.payload_len as u16;
+                let payload_last = 6 + self.cur_frame.payload_len as u16;
                 // The index of the last CRC byte
                 let crc_last = payload_last + 4;
 
                 if self.cur_frame.in_len <= payload_last {
                     //Payload
-                    self.cur_frame.payload[self.cur_frame.in_len as usize - 3] = data;
+                    self.cur_frame.payload[self.cur_frame.in_len as usize - 7] = data;
                 } else if self.cur_frame.in_len <= crc_last {
                     //CRC
                     let crc_pos =
-                        self.cur_frame.in_len as usize - 3 - self.cur_frame.payload_len as usize;
+                        self.cur_frame.in_len as usize - 7 - self.cur_frame.payload_len as usize;
                     self.cur_frame.crc |= (data as u32) << (crc_pos * 8);
                 }
 
@@ -135,7 +160,8 @@ impl DataLinkLayer {
 impl Default for DataFrame {
     fn default() -> Self {
         DataFrame {
-            addr: 0,
+            src: 0,
+            dst: 0,
             payload_len: 0,
             payload: [0; u8::MAX as usize + 1],
             crc: 0,
