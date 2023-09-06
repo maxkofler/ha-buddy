@@ -20,7 +20,7 @@ use arduino_hal::{
     port::{mode::Output, Pin},
 };
 
-use int::UART0;
+use int::UART2;
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -28,9 +28,9 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
 
     let mut serial = arduino_hal::Usart::new(
-        dp.USART0,
-        pins.d0,
-        pins.d1.into_output(),
+        dp.USART2,
+        pins.d17,
+        pins.d16.into_output(),
         BAUDRATE.into_baudrate(),
     );
     serial.listen(Event::RxComplete);
@@ -57,7 +57,7 @@ fn main() -> ! {
         'recv_loop: loop {
             avr_device::asm::sleep();
 
-            let byte = match UART0::pop() {
+            let byte = match UART2::pop() {
                 Some(b) => b,
                 None => continue 'recv_loop,
             };

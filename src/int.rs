@@ -1,4 +1,4 @@
-use avr_device::atmega2560::USART0;
+use avr_device::atmega2560::USART2;
 
 pub struct UARTBuffer {
     buffer: [u8; u8::MAX as usize + 1],
@@ -32,19 +32,19 @@ impl UARTBuffer {
     }
 }
 
-pub struct UART0 {}
+pub struct UART2 {}
 #[allow(dead_code)]
-impl UART0 {
+impl UART2 {
     pub fn available() -> u8 {
-        unsafe { USART_0_BUFFER.available() }
+        unsafe { USART_2_BUFFER.available() }
     }
 
     pub fn pop() -> Option<u8> {
-        unsafe { USART_0_BUFFER.pop() }
+        unsafe { USART_2_BUFFER.pop() }
     }
 }
 
-pub static mut USART_0_BUFFER: UARTBuffer = UARTBuffer {
+pub static mut USART_2_BUFFER: UARTBuffer = UARTBuffer {
     buffer: [0; u8::MAX as usize + 1],
     pos_in: 0,
     pos_out: 0,
@@ -54,11 +54,11 @@ impl UARTBuffer {}
 
 #[avr_device::interrupt(atmega2560)]
 #[allow(non_snake_case)]
-fn USART0_RX() {
-    let udr = unsafe { &(*USART0::ptr()).udr0 };
+fn USART2_RX() {
+    let udr = unsafe { &(*USART2::ptr()).udr2 };
     let byte: u8 = udr.read().bits();
 
     unsafe {
-        USART_0_BUFFER.push(byte);
+        USART_2_BUFFER.push(byte);
     }
 }
