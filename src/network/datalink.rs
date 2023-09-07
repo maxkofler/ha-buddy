@@ -15,6 +15,8 @@ pub struct DataFrame {
     pub src: u16,
     /// The destination address
     pub dst: u16,
+    /// The message type / command
+    pub cmd: u16,
     /// The amount of bytes in the payload
     pub payload_len: u8,
     /// The header CRC
@@ -41,6 +43,7 @@ impl DataFrame {
         digest.update(&[START_BYTE_0, START_BYTE_1]);
         digest.update(&[(self.src & 0xff) as u8, (self.src >> 8 & 0xff) as u8]);
         digest.update(&[(self.dst & 0xff) as u8, (self.dst >> 8 & 0xff) as u8]);
+        digest.update(&[(self.cmd & 0xff) as u8, (self.cmd >> 8 & 0xff) as u8]);
         digest.update(&[self.payload_len]);
         digest.update(&[self.h_crc]);
 
@@ -57,6 +60,7 @@ impl DataFrame {
         digest.update(&[START_BYTE_0, START_BYTE_1]);
         digest.update(&[(self.src & 0xff) as u8, (self.src >> 8 & 0xff) as u8]);
         digest.update(&[(self.dst & 0xff) as u8, (self.dst >> 8 & 0xff) as u8]);
+        digest.update(&[(self.cmd & 0xff) as u8, (self.cmd >> 8 & 0xff) as u8]);
         digest.update(&[self.payload_len]);
 
         digest.finalize()
@@ -118,6 +122,10 @@ impl DataFrame {
         block!(serial.write((self.dst & 0xff) as u8))?;
         block!(serial.write((self.dst >> 8 & 0xff) as u8))?;
 
+        // Write cmd
+        block!(serial.write((self.cmd & 0xff) as u8))?;
+        block!(serial.write((self.cmd >> 8 & 0xff) as u8))?;
+
         // Write payload len
         block!(serial.write(self.payload_len))?;
 
@@ -178,10 +186,18 @@ impl DataLinkLayer {
                 self.cur_frame.dst |= (data as u16) << 8;
             }
             6 => {
+                // cmd low byte
+                self.cur_frame.cmd = data as u16;
+            }
+            7 => {
+                // cmd high byte
+                self.cur_frame.cmd |= (data as u16) << 8;
+            }
+            8 => {
                 // len
                 self.cur_frame.payload_len = data;
             }
-            7 => {
+            9 => {
                 // Check if the header is valid, else drop the frame
                 if data != self.cur_frame.h_crc() {
                     self.reset();
@@ -193,17 +209,17 @@ impl DataLinkLayer {
             }
             _ => {
                 // The index of the last payload byte
-                let payload_last = 7 + self.cur_frame.payload_len as u16;
+                let payload_last = 9 + self.cur_frame.payload_len as u16;
                 // The index of the last CRC byte
                 let crc_last = payload_last + 4;
 
                 if self.cur_frame.in_len <= payload_last {
                     //Payload
-                    self.cur_frame.payload[self.cur_frame.in_len as usize - 8] = data;
+                    self.cur_frame.payload[self.cur_frame.in_len as usize - 10] = data;
                 } else if self.cur_frame.in_len <= crc_last {
                     //CRC
                     let crc_pos =
-                        self.cur_frame.in_len as usize - 8 - self.cur_frame.payload_len as usize;
+                        self.cur_frame.in_len as usize - 10 - self.cur_frame.payload_len as usize;
                     self.cur_frame.f_crc |= (data as u32) << (crc_pos * 8);
                 }
 
@@ -236,6 +252,7 @@ impl Default for DataFrame {
         DataFrame {
             src: 0,
             dst: 0,
+            cmd: 0,
             payload_len: 0,
             h_crc: 0,
             payload: [0; u8::MAX as usize + 1],
