@@ -7,6 +7,7 @@ mod handler;
 mod int;
 mod network;
 mod panic;
+mod sensor;
 
 const BAUDRATE: u32 = 57600;
 const MY_ADDR: u16 = 0x1000;
@@ -21,11 +22,14 @@ use arduino_hal::{
 };
 
 use int::UART2;
+use sensor::*;
 
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
+
+    let sensors: [&dyn SensorRef; 0] = [];
 
     let mut serial = arduino_hal::Usart::new(
         dp.USART2,
@@ -36,10 +40,9 @@ fn main() -> ! {
     serial.listen(Event::RxComplete);
     serial.flush();
 
-    let mut handler_pins = handler::HandlerPins {
-        l_status: pins.d13.into_output().downgrade(),
-    };
+    let mut handler_pins = handler::HandlerPins {};
 
+    let mut led_status = pins.d13.into_output().downgrade();
     let mut p_de = pins.d2.into_output().downgrade();
     let mut p_re = pins.d3.into_output().downgrade();
 
@@ -66,7 +69,8 @@ fn main() -> ! {
                 Some(frame) => {
                     if let Some(frame) = frame.crc_guard() {
                         if let Some(frame) = frame.addr_guard(MY_ADDR) {
-                            match handler::handle_frame(frame, &mut handler_pins) {
+                            led_status.set_high();
+                            match handler::handle_frame(frame, &mut handler_pins, &sensors) {
                                 Some(mut frame) => {
                                     // Set addresses
                                     frame.src = MY_ADDR;
@@ -84,6 +88,7 @@ fn main() -> ! {
                                 }
                                 None => {}
                             }
+                            led_status.set_low();
                         }
                     }
                 }
