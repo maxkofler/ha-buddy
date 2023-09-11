@@ -1,0 +1,14 @@
+{
+  "domain": "ha_buddy",
+  "name": "HomeAssistant Buddy",
+  "version": "1.0",
+  "codeowners": ["@maxkofler"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/ha_buddy",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "requirements": ["crc"],
+  "ssdp": [],
+  "zeroconf": []
+}

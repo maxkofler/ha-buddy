@@ -1,16 +1,21 @@
-'''The DataLink layer'''
+"""The DataLink layer"""
 
 import serial
+import logging
+
+LOGGER = logging.getLogger("ha_buddy")
 
 from crc import Calculator, Crc32, Crc8
-START_BYTE_0 = 0xaa
+
+START_BYTE_0 = 0xAA
 START_BYTE_1 = 0x55
 
-class Frame:
-    '''A frame in the datalink layer'''
 
-    def __init__(self, src: int, dst: int, cmd: int, payload: bytes):
-        '''Create new frame'''
+class Frame:
+    """A frame in the datalink layer"""
+
+    def __init__(self, src: int, dst: int, cmd: int, payload: bytes) -> None:
+        """Create new frame"""
 
         self.src = src
         self.dst = dst
@@ -18,7 +23,7 @@ class Frame:
         self.payload = payload
 
     def to_bytes(self) -> bytes:
-        '''Generate a byte array from this frame for transmission'''
+        """Generate a byte array from this frame for transmission"""
 
         frame_bytes = bytearray()
 
@@ -42,48 +47,57 @@ class Frame:
 
         return bytes(frame_bytes)
 
+
 class ExpectedBytesCountError(Exception):
-    '''
+    """
     An error that gets raised if the expected amount of bytes
     wasn't fulfilled
-    '''
-    def __init__(self, expected: int, got: int, reason: str):
+    """
+
+    def __init__(self, expected: int, got: int, reason: str) -> None:
         self.expected = expected
         self.got = got
         self.message = f"Expected {self.expected} bytes {reason}, got {self.got}"
         super().__init__(self.message)
 
+
 class StartBytesError(Exception):
-    '''
+    """
     An error that gets raised if the start bytes weren't the first bytes
-    '''
-    def __init__(self, got: bytes):
+    """
+
+    def __init__(self, got: bytes) -> None:
         self.got = got
         self.message = f"Expected start bytes, got {self.got}"
         super().__init__(self.message)
 
+
 class HeaderCRCError(Exception):
-    '''
+    """
     An error that gets raised if the header crc did not match
-    '''
-    def __init__(self, expected: int, got: int):
+    """
+
+    def __init__(self, expected: int, got: int) -> None:
         self.expected = expected
         self.got = got
         self.message = f"Expected header crc {self.expected}, got {self.got}"
         super().__init__(self.message)
 
+
 class FrameCRCError(Exception):
-    '''
+    """
     An error that gets raised if the frame crc did not match
-    '''
-    def __init__(self, expected: int, got: int):
+    """
+
+    def __init__(self, expected: int, got: int) -> None:
         self.expected = expected
         self.got = got
         self.message = f"Expected frame crc {self.expected}, got {self.got}"
         super().__init__(self.message)
 
+
 def rec_bytes(count: int, ser: serial.Serial, reason: str) -> bytes:
-    '''Receive n bytes from the serial instance'''
+    """Receive n bytes from the serial instance"""
 
     in_bytes = ser.read(count)
 
@@ -92,8 +106,9 @@ def rec_bytes(count: int, ser: serial.Serial, reason: str) -> bytes:
 
     return in_bytes
 
+
 def frame_decode(ser: serial.Serial) -> Frame:
-    '''Decode a frame from a serial interface'''
+    """Decode a frame from a serial interface"""
 
     start_bytes = bytes([START_BYTE_0, START_BYTE_1])
 
@@ -142,3 +157,22 @@ def frame_decode(ser: serial.Serial) -> Frame:
         raise FrameCRCError(calculated_frame_crc, frame_crc)
 
     return Frame(src, dst, cmd, payload)
+
+
+def exec_command(ser: serial.Serial, out_frame: Frame) -> bytes:
+    """
+    Tries to execute a command and return the payload.
+    If the client does not return the right command, it gets thrown away
+    """
+
+    ser.write(out_frame.to_bytes())
+
+    while True:
+        in_frame = frame_decode(ser)
+
+        if in_frame.cmd == out_frame.cmd + 1:
+            return in_frame.payload
+
+        LOGGER.error(
+            f"Invalid response command: Expected {hex(out_frame.cmd+1)}, got {hex(in_frame.cmd)}"
+        )
