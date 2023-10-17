@@ -46,8 +46,6 @@ pub fn handle_frame(
                 Some(id) => id,
             };
 
-            let mut res = DataFrame::default();
-
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
                 return Some(res);
@@ -71,8 +69,6 @@ pub fn handle_frame(
                 None => return None,
                 Some(id) => id,
             };
-
-            let mut res = DataFrame::default();
 
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
@@ -98,8 +94,6 @@ pub fn handle_frame(
                 Some(id) => id,
             };
 
-            let mut res = DataFrame::default();
-
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
                 return Some(res);
@@ -123,8 +117,6 @@ pub fn handle_frame(
                 None => return None,
                 Some(id) => id,
             };
-
-            let mut res = DataFrame::default();
 
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
@@ -150,8 +142,6 @@ pub fn handle_frame(
                 Some(id) => id,
             };
 
-            let mut res = DataFrame::default();
-
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
                 return Some(res);
@@ -175,8 +165,6 @@ pub fn handle_frame(
                 None => return None,
                 Some(id) => id,
             };
-
-            let mut res = DataFrame::default();
 
             if sensor_id as usize >= sensors.len() {
                 res.payload_len = 0;
