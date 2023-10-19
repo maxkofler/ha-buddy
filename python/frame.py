@@ -5,7 +5,7 @@ import logging
 
 LOGGER = logging.getLogger("ha_buddy")
 
-from crc import Calculator, Crc32, Crc8
+from crc import Calculator, Crc8
 
 START_BYTE_0 = 0xAA
 START_BYTE_1 = 0x55
@@ -34,16 +34,16 @@ class Frame:
         frame_bytes += self.cmd.to_bytes(2, byteorder="little")
         frame_bytes += len(self.payload).to_bytes(1, byteorder="little")
 
-        header_calculator = Calculator(Crc8.BLUETOOTH)
+        header_calculator = Calculator(Crc8.AUTOSAR)
         header_crc = header_calculator.checksum(frame_bytes)
 
         frame_bytes += header_crc.to_bytes(1, byteorder="little")
         frame_bytes += self.payload
 
-        frame_calculator = Calculator(Crc32.BZIP2)
+        frame_calculator = Calculator(Crc8.AUTOSAR)
         frame_crc = frame_calculator.checksum(frame_bytes)
 
-        frame_bytes += frame_crc.to_bytes(4, byteorder="little")
+        frame_bytes += frame_crc.to_bytes(1, byteorder="little")
 
         return bytes(frame_bytes)
 
@@ -68,7 +68,7 @@ class StartBytesError(Exception):
 
     def __init__(self, got: bytes) -> None:
         self.got = got
-        self.message = f"Expected start bytes, got {self.got}"
+        self.message = f"Expected start bytes, got {hex(self.got)}"
         super().__init__(self.message)
 
 
@@ -80,7 +80,7 @@ class HeaderCRCError(Exception):
     def __init__(self, expected: int, got: int) -> None:
         self.expected = expected
         self.got = got
-        self.message = f"Expected header crc {self.expected}, got {self.got}"
+        self.message = f"Expected header crc {hex(self.expected)}, got {hex(self.got)}"
         super().__init__(self.message)
 
 
@@ -92,7 +92,7 @@ class FrameCRCError(Exception):
     def __init__(self, expected: int, got: int) -> None:
         self.expected = expected
         self.got = got
-        self.message = f"Expected frame crc {self.expected}, got {self.got}"
+        self.message = f"Expected frame crc {hex(self.expected)}, got {hex(self.got)}"
         super().__init__(self.message)
 
 
@@ -137,7 +137,7 @@ def frame_decode(ser: serial.Serial) -> Frame:
     b_header_crc = rec_bytes(1, ser, "for header crc")
     header_crc = int.from_bytes(b_header_crc, byteorder="little")
 
-    header_calculator = Calculator(Crc8.BLUETOOTH)
+    header_calculator = Calculator(Crc8.AUTOSAR)
     calculated_header_crc = header_calculator.checksum(received_bytes)
 
     if not calculated_header_crc == header_crc:
@@ -147,10 +147,10 @@ def frame_decode(ser: serial.Serial) -> Frame:
     payload = rec_bytes(payload_len, ser, "for payload")
     received_bytes += payload
 
-    b_frame_crc = rec_bytes(4, ser, "for frame crc")
+    b_frame_crc = rec_bytes(1, ser, "for frame crc")
     frame_crc = int.from_bytes(b_frame_crc, byteorder="little")
 
-    frame_calculator = Calculator(Crc32.BZIP2)
+    frame_calculator = Calculator(Crc8.AUTOSAR)
     calculated_frame_crc = frame_calculator.checksum(received_bytes)
 
     if not calculated_frame_crc == frame_crc:
