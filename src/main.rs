@@ -3,14 +3,12 @@
 #![feature(exclusive_range_pattern)]
 #![feature(abi_avr_interrupt)]
 
+mod crc;
+mod datalink;
 mod handler;
 mod int;
-mod network;
 mod panic;
 mod sensor;
-
-const BAUDRATE: u32 = 57600;
-const MY_ADDR: u16 = 0x1000;
 
 use arduino_hal::{
     delay_ms,
@@ -21,8 +19,25 @@ use arduino_hal::{
     port::{mode::Output, Pin},
 };
 
-use int::UART2;
-use sensor::*;
+use datalink::DataFrame;
+use handler::handle_frame;
+use int::*;
+use sensor::{Sensor, SensorRef};
+
+const BAUDRATE: u32 = 57600;
+const MY_ADDR: u16 = 0x1000;
+
+/// A static reference to the current frame, to not store it on the stack
+static mut FRAME: DataFrame = DataFrame {
+    src: 0,
+    dst: 0,
+    cmd: 0,
+    payload_len: 0,
+    h_crc: 0,
+    payload: [0; 256],
+    f_crc: 0,
+    in_len: 0,
+};
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -54,8 +69,6 @@ fn main() -> ! {
         avr_device::interrupt::enable();
     }
 
-    let mut dl_layer = network::DataLinkLayer::default();
-
     loop {
         'recv_loop: loop {
             avr_device::asm::sleep();
@@ -65,35 +78,29 @@ fn main() -> ! {
                 None => continue 'recv_loop,
             };
 
-            match dl_layer.handle_byte(byte) {
-                Some(frame) => {
-                    if let Some(frame) = frame.crc_guard() {
-                        if let Some(frame) = frame.addr_guard(MY_ADDR) {
-                            led_status.set_high();
-                            match handler::handle_frame(frame, &mut handler_pins, &sensors) {
-                                Some(mut frame) => {
-                                    // Set addresses
-                                    frame.src = MY_ADDR;
-                                    frame.dst = 0;
+            if unsafe { FRAME.handle_byte(byte) } {
+                if unsafe { FRAME.check_crc() } {
+                    if unsafe { FRAME.dst } == MY_ADDR {
+                        led_status.set_high();
+                        if handle_frame(unsafe { &mut FRAME }, &mut handler_pins, &sensors) {
+                            // Set addresses
+                            unsafe { FRAME.src = MY_ADDR };
+                            unsafe { FRAME.dst = 0 };
 
-                                    // Enable RS485 driver
-                                    p_de.set_high();
+                            // Enable RS485 driver
+                            p_de.set_high();
 
-                                    frame.send(&mut serial).unwrap();
+                            unsafe { FRAME.send(&mut serial).unwrap() };
 
-                                    // Flush contents, wait for data send and disable RS485 driver
-                                    serial.flush();
-                                    delay_ms(1);
-                                    p_de.set_low();
-                                }
-                                None => {}
-                            }
-                            led_status.set_low();
+                            // Flush contents, wait for data send and disable RS485 driver
+                            serial.flush();
+                            delay_ms(1);
+                            p_de.set_low();
                         }
                     }
                 }
-                _ => {}
             }
+            led_status.set_low();
         }
     }
 }
