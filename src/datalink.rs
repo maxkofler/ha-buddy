@@ -1,15 +1,16 @@
-use crc::{Crc, CRC_32_BZIP2, CRC_8_BLUETOOTH};
 use embedded_hal::serial::Write;
 use nb::block;
 
-const F_CRC_ALGORITHM: Crc<u32> = Crc::<u32>::new(&CRC_32_BZIP2);
-const H_CRC_ALGORITHM: Crc<u8> = Crc::<u8>::new(&CRC_8_BLUETOOTH);
+use crate::crc::{CRC8Autosar, CRC, CRC8_AUTOSAR_INIT};
 
 const START_BYTE_0: u8 = 0xaa;
 const START_BYTE_1: u8 = 0x55;
 
+static mut CRC_CALCULATOR: CRC8Autosar = CRC8Autosar {
+    crc: CRC8_AUTOSAR_INIT,
+};
+
 /// A frame from the Data Link Layer
-#[derive(Clone)]
 pub struct DataFrame {
     /// The source address
     pub src: u16,
@@ -24,21 +25,16 @@ pub struct DataFrame {
     /// The payload itself
     pub payload: [u8; u8::MAX as usize + 1],
     /// The CRC of the frame
-    pub f_crc: u32,
+    pub f_crc: u8,
     /// (internal) The incoming length of an unassembled frame
-    in_len: u16,
-}
-
-/// Represents a data link layer in any stack
-pub struct DataLinkLayer {
-    /// The frame that is currently being assembled
-    cur_frame: DataFrame,
+    pub in_len: u16,
 }
 
 impl DataFrame {
-    /// Generates a CRC32 - BZIP2 for this DataFrame
-    pub fn crc(&self) -> u32 {
-        let mut digest = F_CRC_ALGORITHM.digest();
+    /// Calculates the frame checksum for this DataFrame
+    pub fn f_crc(&self) -> u8 {
+        let digest = unsafe { &mut CRC_CALCULATOR };
+        digest.reset();
 
         digest.update(&[START_BYTE_0, START_BYTE_1]);
         digest.update(&[(self.src & 0xff) as u8, (self.src >> 8 & 0xff) as u8]);
@@ -54,8 +50,10 @@ impl DataFrame {
         digest.finalize()
     }
 
+    /// Calculates the header checksum for this DataFrame
     pub fn h_crc(&self) -> u8 {
-        let mut digest = H_CRC_ALGORITHM.digest();
+        let digest = unsafe { &mut CRC_CALCULATOR };
+        digest.reset();
 
         digest.update(&[START_BYTE_0, START_BYTE_1]);
         digest.update(&[(self.src & 0xff) as u8, (self.src >> 8 & 0xff) as u8]);
@@ -69,42 +67,20 @@ impl DataFrame {
     /// Updates the internal CRC to the appropriate value for the frame in this state
     pub fn update_crc(&mut self) {
         self.h_crc = self.h_crc();
-        self.f_crc = self.crc();
+        self.f_crc = self.f_crc();
     }
 
     /// Checks if the received CRC and the calculated CRC are the same
     /// # Returns
     /// `true` if the CRC is valid, else `false`
     pub fn check_crc(&self) -> bool {
-        self.f_crc == self.crc()
-    }
-
-    /// Moves this value, checks if the CRC is valid and returns the frame, else discards it
-    /// # Returns
-    /// `Some(Self)` if the CRC is valid, else `None`
-    pub fn crc_guard(self) -> Option<Self> {
-        match self.check_crc() {
-            true => Some(self),
-            false => None,
-        }
-    }
-
-    /// Moves this value, checks if the destination address is the desired one and returns the frame, else discards it
-    /// # Arguments
-    /// * `addr` - The destination address to match against
-    /// # Returns
-    /// `Some(Self)` if the address matches, else `None`
-    pub fn addr_guard(self, addr: u16) -> Option<Self> {
-        match self.dst == addr {
-            true => Some(self),
-            false => None,
-        }
+        self.f_crc == self.f_crc()
     }
 
     /// Sends this frame to the provided writer, consumes this frame
     /// # Arguments
     /// * `serial` - The writer to send this frame to
-    pub fn send<S>(mut self, serial: &mut S) -> nb::Result<(), S::Error>
+    pub fn send<S>(&mut self, serial: &mut S) -> nb::Result<(), S::Error>
     where
         S: Write<u8>,
     {
@@ -138,134 +114,99 @@ impl DataFrame {
         }
 
         // Write CRC
-        block!(serial.write((self.f_crc & 0xff) as u8))?;
-        block!(serial.write((self.f_crc >> 8 & 0xff) as u8))?;
-        block!(serial.write((self.f_crc >> 16 & 0xff) as u8))?;
-        block!(serial.write((self.f_crc >> 24 & 0xff) as u8))?;
+        block!(serial.write(self.f_crc))?;
 
         Ok(())
     }
-}
 
-impl DataLinkLayer {
-    /// Processes a received byte using the protocol
-    /// # Arguments
-    /// * `data` - The data byte to process
-    /// # Returns
-    /// A complete frame if one has been assembled completely
-    pub fn handle_byte(&mut self, data: u8) -> Option<DataFrame> {
-        match self.cur_frame.in_len {
+    fn reset(&mut self) {
+        self.in_len = 0;
+    }
+
+    pub fn handle_byte(&mut self, byte: u8) -> bool {
+        match self.in_len {
             0 => {
                 // Start byte 0: 0xaa
-                if data != 0xaa {
+                if byte != 0xaa {
                     self.reset();
-                    return None;
+                    return false;
                 }
             }
             1 => {
                 // Start byte 1: 0x55
-                if data != 0x55 {
+                if byte != 0x55 {
                     self.reset();
-                    return None;
+                    return false;
                 }
             }
             2 => {
                 // src low byte
-                self.cur_frame.src = data as u16;
+                self.src = byte as u16;
             }
             3 => {
                 // src high byte
-                self.cur_frame.src |= (data as u16) << 8;
+                self.src |= (byte as u16) << 8;
             }
             4 => {
                 // dst low byte
-                self.cur_frame.dst = data as u16;
+                self.dst = byte as u16;
             }
             5 => {
                 // dst high byte
-                self.cur_frame.dst |= (data as u16) << 8;
+                self.dst |= (byte as u16) << 8;
             }
             6 => {
                 // cmd low byte
-                self.cur_frame.cmd = data as u16;
+                self.cmd = byte as u16;
             }
             7 => {
                 // cmd high byte
-                self.cur_frame.cmd |= (data as u16) << 8;
+                self.cmd |= (byte as u16) << 8;
             }
             8 => {
                 // len
-                self.cur_frame.payload_len = data;
+                self.payload_len = byte;
             }
             9 => {
                 // Check if the header is valid, else drop the frame
-                if data != self.cur_frame.h_crc() {
+                if byte != self.h_crc() {
                     self.reset();
-                    return None;
+                    return false;
                 }
 
                 // h_crc
-                self.cur_frame.h_crc = data;
+                self.h_crc = byte;
             }
             _ => {
                 // The index of the last payload byte
-                let payload_last = 9 + self.cur_frame.payload_len as u16;
+                let payload_last = 9 + self.payload_len as u16;
                 // The index of the last CRC byte
-                let crc_last = payload_last + 4;
+                let crc_last = payload_last + 1;
 
-                if self.cur_frame.in_len <= payload_last {
+                if self.in_len <= payload_last {
                     //Payload
-                    self.cur_frame.payload[self.cur_frame.in_len as usize - 10] = data;
-                } else if self.cur_frame.in_len <= crc_last {
+                    self.payload[self.in_len as usize - 10] = byte;
+                } else if self.in_len <= crc_last {
                     //CRC
-                    let crc_pos =
-                        self.cur_frame.in_len as usize - 10 - self.cur_frame.payload_len as usize;
-                    self.cur_frame.f_crc |= (data as u32) << (crc_pos * 8);
+                    self.f_crc = byte;
                 }
 
                 // This marks the end of a frame
-                if self.cur_frame.in_len == crc_last {
+                if self.in_len == crc_last {
                     // Save the frame and reset the internal one
-                    let frame = self.cur_frame.clone();
-                    self.cur_frame = DataFrame::default();
+                    //let frame = self.clone();
+                    self.in_len = 0;
+                    //self = DataFrame::default();
 
                     // Return the new frame
-                    return Some(frame);
+                    return true;
                 }
             }
         }
 
         // Increment the counter
-        self.cur_frame.in_len += 1;
+        self.in_len += 1;
 
-        None
-    }
-
-    /// Resets the current frame that is being assembled to an emtpy one
-    pub fn reset(&mut self) {
-        self.cur_frame = DataFrame::default();
-    }
-}
-
-impl Default for DataFrame {
-    fn default() -> Self {
-        DataFrame {
-            src: 0,
-            dst: 0,
-            cmd: 0,
-            payload_len: 0,
-            h_crc: 0,
-            payload: [0; u8::MAX as usize + 1],
-            f_crc: 0,
-            in_len: 0,
-        }
-    }
-}
-
-impl Default for DataLinkLayer {
-    fn default() -> Self {
-        DataLinkLayer {
-            cur_frame: DataFrame::default(),
-        }
+        false
     }
 }
