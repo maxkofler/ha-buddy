@@ -22,7 +22,7 @@ use arduino_hal::{
 use datalink::DataFrame;
 use handler::handle_frame;
 use int::*;
-use sensor::{Sensor, SensorRef};
+use sensor::SensorRef;
 
 const BAUDRATE: u32 = 57600;
 const MY_ADDR: u16 = 0x1000;
