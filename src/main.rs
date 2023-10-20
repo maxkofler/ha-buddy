@@ -86,6 +86,7 @@ fn main() -> ! {
                             // Set addresses
                             unsafe { FRAME.src = MY_ADDR };
                             unsafe { FRAME.dst = 0 };
+                            unsafe { FRAME.cmd += 1 };
 
                             // Enable RS485 driver
                             p_de.set_high();
