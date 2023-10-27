@@ -3,14 +3,13 @@ use core::cell::RefCell;
 mod state_class;
 pub use state_class::*;
 
-mod device_class;
-pub use device_class::*;
-
 mod sensor_ref;
 pub use sensor_ref::*;
 
 mod sensor_value;
 pub use sensor_value::*;
+
+use super::entity::DeviceClass;
 
 /// A HomeAssistant Sensor
 ///
