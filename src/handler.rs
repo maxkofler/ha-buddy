@@ -1,4 +1,4 @@
-use crate::{sensor::SensorRef, DataFrame};
+use crate::{homeassistant::sensor::SensorRef, DataFrame};
 
 pub struct HandlerPins {}
 

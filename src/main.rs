@@ -6,9 +6,9 @@
 mod crc;
 mod datalink;
 mod handler;
+mod homeassistant;
 mod int;
 mod panic;
-mod sensor;
 
 use arduino_hal::{
     delay_ms,
@@ -21,8 +21,8 @@ use arduino_hal::{
 
 use datalink::DataFrame;
 use handler::handle_frame;
+use homeassistant::sensor::SensorRef;
 use int::*;
-use sensor::SensorRef;
 
 const BAUDRATE: u32 = 57600;
 const MY_ADDR: u16 = 0x1000;
