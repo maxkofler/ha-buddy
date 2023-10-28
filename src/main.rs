@@ -39,6 +39,13 @@ static mut FRAME: DataFrame = DataFrame {
     in_len: 0,
 };
 
+static mut QUARTER_SECONDS_RUNNING: u32 = 0;
+
+#[avr_device::interrupt(atmega328p)]
+fn TIMER1_COMPA() {
+    unsafe { QUARTER_SECONDS_RUNNING += 1 }
+}
+
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
@@ -64,6 +71,25 @@ fn main() -> ! {
     p_re.set_low();
     p_de.set_low();
 
+    // Timer Configuration:
+    // - WGM = 4: CTC mode (Clear Timer on Compare Match)
+    // - Prescaler 256
+    // - OCR1A = 15624
+    //
+    // => F = 16 MHz / (256 * (1 + 15624)) = 4 Hz
+    //
+    let tmr1 = dp.TC1;
+    tmr1.tccr1a.write(|w| w.wgm1().bits(0b00));
+    tmr1.tccr1b
+        .write(|w| w.cs1().prescale_256().wgm1().bits(0b01));
+    tmr1.ocr1a.write(|w| w.bits(15624));
+
+    // Enable the timer interrupt
+    tmr1.timsk1.write(|w| w.ocie1a().set_bit());
+
+    // Hold the last time the timer interrupt triggered
+    let mut last_time: u32 = 0;
+
     // Enable interrupts
     unsafe {
         avr_device::interrupt::enable();
@@ -72,6 +98,12 @@ fn main() -> ! {
     loop {
         'recv_loop: loop {
             avr_device::asm::sleep();
+
+            if unsafe { QUARTER_SECONDS_RUNNING } - last_time >= 4 {
+                last_time += 4;
+
+                // This will fire every second
+            }
 
             let byte = match UART2::pop() {
                 Some(b) => b,
