@@ -3,6 +3,7 @@
 #[derive(Copy, Clone)]
 pub enum DeviceClass {
     Temperature,
+    Switch,
 }
 
 impl DeviceClass {
@@ -10,6 +11,7 @@ impl DeviceClass {
     pub fn as_str(&self) -> &'static str {
         match self {
             DeviceClass::Temperature => "DeviceClass.TEMPERATURE",
+            DeviceClass::Switch => "SwitchDeviceClass.SWITCH",
         }
     }
 }
