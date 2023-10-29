@@ -13,8 +13,9 @@ if len(sys.argv) <= 2:
     exit(-1)
 
 ser = serial.Serial(sys.argv[1], baudrate=57600)
-time.sleep(2)
 ser.timeout = 1
+print("Waiting for device to reset...")
+time.sleep(5)
 
 CLIENT_ADDR = int(sys.argv[2], 0)
 print(f"Talking to {hex(CLIENT_ADDR)}")
