@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import serial
 import struct
+import time
 
 from homeassistant.components.sensor import (
     SensorEntity,
@@ -26,6 +27,9 @@ async def async_setup_entry(hass, config_entry, async_add_devices):
     except:
         LOGGER.error("Failed to open serial port!")
         return
+
+    LOGGER.info("Waiting 5 seconds for all devices to come up...")
+    time.sleep(5)
 
     LOGGER.info("Scanning for devices")
 
