@@ -33,3 +33,6 @@ codegen-units = 1
 debug = true
 lto = true
 opt-level = "s"
+
+[profile.dev.package.compiler_builtins]
+overflow-checks = false
