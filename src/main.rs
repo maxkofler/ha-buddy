@@ -15,15 +15,20 @@ use arduino_hal::{
     delay_ms,
     hal::{
         port::Dynamic,
-        usart::{BaudrateArduinoExt, Event},
+        usart::{BaudrateExt, Event},
     },
     port::{mode::Output, Pin},
 };
 
 use datalink::DataFrame;
+use driver::ds18b20;
 use handler::handle_frame;
-use homeassistant::{sensor::SensorRef, switch::SwitchRef};
+use homeassistant::{
+    sensor::{Sensor, SensorRef},
+    switch::SwitchRef,
+};
 use int::*;
+use onewire::OneWire;
 
 const BAUDRATE: u32 = 57600;
 const MY_ADDR: u16 = 0x1000;
@@ -52,7 +57,23 @@ fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
 
-    let sensors: [&dyn SensorRef; 0] = [];
+    let mut onewire_pin = pins.d10.into_opendrain();
+    let mut onewire_bus = OneWire::new(&mut onewire_pin, false);
+
+    let sensor_temperatur = {
+        let value = ds18b20::measure_and_read(&mut onewire_bus).unwrap();
+
+        Sensor::new(
+            "Temperatur",
+            "sensor_temperatur",
+            "°C",
+            homeassistant::entity::DeviceClass::Temperature,
+            homeassistant::sensor::StateClass::Measurement,
+            value,
+        )
+    };
+
+    let sensors: [&dyn SensorRef; 1] = [&sensor_temperatur];
     let mut switches: [&mut dyn SwitchRef; 0] = [];
 
     let mut serial = arduino_hal::Usart::new(
@@ -97,6 +118,9 @@ fn main() -> ! {
         avr_device::interrupt::enable();
     }
 
+    // If a measure call has been sent out
+    let mut measure_in_progress = false;
+
     loop {
         'recv_loop: loop {
             avr_device::asm::sleep();
@@ -105,6 +129,12 @@ fn main() -> ! {
                 last_time += 4;
 
                 // This will fire every second
+                if measure_in_progress {
+                    sensor_temperatur.set_value(ds18b20::read_temp(&mut onewire_bus).unwrap())
+                } else {
+                    ds18b20::initiate_measuremet(&mut onewire_bus, false);
+                }
+                measure_in_progress = !measure_in_progress;
             }
 
             let byte = match UART2::pop() {
