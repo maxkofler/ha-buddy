@@ -2,6 +2,7 @@
 #!python3
 
 import sys
+import time
 
 import struct
 import serial
@@ -14,6 +15,8 @@ if len(sys.argv) <= 2:
 
 ser = serial.Serial(sys.argv[1], baudrate=57600)
 ser.timeout = 1
+print("Waiting for device to reset...")
+time.sleep(5)
 
 CLIENT_ADDR = int(sys.argv[2], 0)
 print(f"Talking to {hex(CLIENT_ADDR)}")
