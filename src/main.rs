@@ -25,7 +25,7 @@ use driver::ds18b20;
 use handler::handle_frame;
 use homeassistant::{
     sensor::{Sensor, SensorRef},
-    switch::SwitchRef,
+    switch::{PinSwitch, SwitchRef},
 };
 use int::*;
 use onewire::OneWire;
@@ -74,7 +74,12 @@ fn main() -> ! {
     };
 
     let sensors: [&dyn SensorRef; 1] = [&sensor_temperatur];
-    let mut switches: [&mut dyn SwitchRef; 0] = [];
+    let mut switches: [&mut dyn SwitchRef; 1] = [&mut PinSwitch::new(
+        "Relais",
+        "switch_relais",
+        pins.d5.into_output_high(),
+        true,
+    )];
 
     let mut serial = arduino_hal::Usart::new(
         dp.USART0,
