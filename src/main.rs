@@ -5,6 +5,7 @@
 
 mod crc;
 mod datalink;
+mod driver;
 mod handler;
 mod homeassistant;
 mod int;
