@@ -21,7 +21,7 @@ use arduino_hal::{
 
 use datalink::DataFrame;
 use handler::handle_frame;
-use homeassistant::sensor::SensorRef;
+use homeassistant::{sensor::SensorRef, switch::SwitchRef};
 use int::*;
 
 const BAUDRATE: u32 = 57600;
@@ -52,6 +52,7 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
 
     let sensors: [&dyn SensorRef; 0] = [];
+    let mut switches: [&mut dyn SwitchRef; 0] = [];
 
     let mut serial = arduino_hal::Usart::new(
         dp.USART2,
@@ -114,7 +115,12 @@ fn main() -> ! {
                 if unsafe { FRAME.check_crc() } {
                     if unsafe { FRAME.dst } == MY_ADDR {
                         led_status.set_high();
-                        if handle_frame(unsafe { &mut FRAME }, &mut handler_pins, &sensors) {
+                        if handle_frame(
+                            unsafe { &mut FRAME },
+                            &mut handler_pins,
+                            &sensors,
+                            &mut switches,
+                        ) {
                             // Set addresses
                             unsafe { FRAME.src = MY_ADDR };
                             unsafe { FRAME.dst = 0 };

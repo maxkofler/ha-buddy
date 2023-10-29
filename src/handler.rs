@@ -1,4 +1,10 @@
-use crate::{homeassistant::sensor::SensorRef, DataFrame};
+use crate::{
+    homeassistant::{
+        sensor::SensorRef,
+        switch::{SwitchRef, SwitchRequest},
+    },
+    DataFrame,
+};
 
 pub struct HandlerPins {}
 
@@ -16,6 +22,7 @@ pub fn handle_frame(
     frame: &mut DataFrame,
     _pins: &mut HandlerPins,
     sensors: &[&dyn SensorRef],
+    switches: &mut [&mut dyn SwitchRef],
 ) -> bool {
     match frame.cmd {
         0x0000 => {
@@ -172,6 +179,116 @@ pub fn handle_frame(
             }
 
             sensors[sensor_id as usize].get_payload(&mut frame.payload_len, &mut frame.payload);
+
+            true
+        }
+        0x0200 => {
+            // Switch discovery
+
+            let num = switches.len() as u32;
+
+            frame.payload_len = 4;
+
+            frame.payload[0] = num as u8 & 0xff;
+            frame.payload[1] = (num >> 8) as u8 & 0xff;
+            frame.payload[2] = (num >> 16) as u8 & 0xff;
+            frame.payload[3] = (num >> 24) as u8 & 0xff;
+
+            true
+        }
+        0x0202 => {
+            // Switch unique_id
+
+            let switch_id: u32 = match unpack_u32(&frame.payload[0..4]) {
+                None => return false,
+                Some(id) => id,
+            };
+
+            if switch_id as usize >= switches.len() {
+                frame.payload_len = 0;
+                return true;
+            }
+
+            let string = switches[switch_id as usize].get_unique_id();
+
+            frame.payload_len = string.len() as u8;
+            let bytes = string.as_bytes();
+
+            for i in 0..(frame.payload_len as usize) {
+                frame.payload[i] = bytes[i];
+            }
+
+            true
+        }
+        0x0204 => {
+            // Switch name
+
+            let switch_id: u32 = match unpack_u32(&frame.payload[0..4]) {
+                None => return false,
+                Some(id) => id,
+            };
+
+            if switch_id as usize >= switches.len() {
+                frame.payload_len = 0;
+                return true;
+            }
+
+            let string = switches[switch_id as usize].get_name();
+
+            frame.payload_len = string.len() as u8;
+            let bytes = string.as_bytes();
+
+            for i in 0..(frame.payload_len as usize) {
+                frame.payload[i] = bytes[i];
+            }
+
+            true
+        }
+        0x0206 => {
+            // Switch state
+
+            let switch_id: u32 = match unpack_u32(&frame.payload[0..4]) {
+                None => return false,
+                Some(id) => id,
+            };
+
+            if switch_id as usize >= switches.len() {
+                frame.payload_len = 0;
+                return true;
+            }
+
+            frame.payload_len = 1;
+            frame.payload[0] = switches[switch_id as usize].exec_request(SwitchRequest::Get) as u8;
+
+            true
+        }
+        0x0208 => {
+            // Switch exec
+
+            let switch_id: u32 = match unpack_u32(&frame.payload[0..4]) {
+                None => return false,
+                Some(id) => id,
+            };
+
+            if switch_id as usize >= switches.len() {
+                frame.payload_len = 0;
+                return true;
+            }
+
+            let req = match frame.payload[4] {
+                0 => SwitchRequest::TurnOFF,
+                1 => SwitchRequest::TurnON,
+                2 => SwitchRequest::Toggle,
+                _ => {
+                    frame.payload_len = 0;
+                    return true;
+                }
+            };
+
+            switches[switch_id as usize].exec_request(req);
+
+            frame.payload_len = 1;
+            frame.payload[0] = switches[switch_id as usize].exec_request(SwitchRequest::Get) as u8;
 
             true
         }
