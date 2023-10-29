@@ -56,9 +56,9 @@ fn main() -> ! {
     let mut switches: [&mut dyn SwitchRef; 0] = [];
 
     let mut serial = arduino_hal::Usart::new(
-        dp.USART2,
-        pins.d17,
-        pins.d16.into_output(),
+        dp.USART0,
+        pins.d0,
+        pins.d1.into_output(),
         BAUDRATE.into_baudrate(),
     );
     serial.listen(Event::RxComplete);

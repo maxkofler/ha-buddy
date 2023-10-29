@@ -1,4 +1,4 @@
-use avr_device::atmega2560::USART2;
+use avr_device::atmega328p::USART0;
 
 pub struct UARTBuffer {
     buffer: [u8; u8::MAX as usize + 1],
@@ -52,10 +52,10 @@ pub static mut USART_2_BUFFER: UARTBuffer = UARTBuffer {
 
 impl UARTBuffer {}
 
-#[avr_device::interrupt(atmega2560)]
+#[avr_device::interrupt(atmega328p)]
 #[allow(non_snake_case)]
-fn USART2_RX() {
-    let udr = unsafe { &(*USART2::ptr()).udr2 };
+fn USART_RX() {
+    let udr = unsafe { &(*USART0::ptr()).udr0 };
     let byte: u8 = udr.read().bits();
 
     unsafe {
