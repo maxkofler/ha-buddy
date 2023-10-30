@@ -2,10 +2,12 @@ import logging
 
 from homeassistant.helpers import device_registry as dr
 from .entities.sensor import BuddySensor
+from .entities.switch import BuddySwitch
 
 LOGGER = logging.getLogger("ha_buddy")
 
 CMD_SENSOR_DISCOVERY = 0x0100
+CMD_SWITCH_DISCOVERY = 0x0200
 
 
 class Device:
@@ -38,6 +40,21 @@ class Device:
             sensors.append(BuddySensor(self, i))
 
         return sensors
+
+    def get_switches(self) -> []:
+        num_switchs = int.from_bytes(
+            self.get_device_payload(CMD_SWITCH_DISCOVERY, bytes()),
+            byteorder="little",
+        )
+
+        LOGGER.info(f"Device {hex(self._addr)} has {num_switchs} available switches")
+
+        switches = []
+
+        for i in range(0, num_switchs):
+            switches.append(BuddySwitch(self, i))
+
+        return switches
 
     def device_info(self) -> dr.DeviceInfo:
         return self._device_info
