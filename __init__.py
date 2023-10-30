@@ -7,8 +7,28 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 
+import logging
+import serial
+import time
+
+from .python.device import Device
+from .python.connection import BuddyConnection
+
+LOGGER = logging.getLogger(DOMAIN)
+
 # For your initial PR, limit it to 1 platform.
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+
+async def async_setup(hass: HomeAssistant, config):
+    LOGGER.warning("HA-buddy async_setup()!")
+    connection = BuddyConnection("/dev/ttyUSB0", DOMAIN)
+
+    if not connection.connect_and_scan():
+        return False
+
+    hass.data[DOMAIN] = connection
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
