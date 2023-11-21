@@ -18,6 +18,15 @@ pub trait SensorValue {
     fn to_payload(&self, len: &mut u8, payload: &mut [u8; u8::MAX as usize + 1]);
 }
 
+impl<T: SensorValue> SensorValue for Option<T> {
+    fn to_payload(&self, len: &mut u8, payload: &mut [u8; u8::MAX as usize + 1]) {
+        match self {
+            None => *len = 0,
+            Some(v) => v.to_payload(len, payload),
+        }
+    }
+}
+
 impl SensorValue for i32 {
     fn to_payload(&self, len: &mut u8, payload: &mut [u8; u8::MAX as usize + 1]) {
         payload[0] = PayloadType::Int as u8;

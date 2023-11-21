@@ -26,7 +26,7 @@ pub struct Sensor<'a, T: SensorValue> {
     /// The `state_class` for this sensor
     pub state_class: StateClass,
     /// The current value of this sensor
-    pub value: RefCell<T>,
+    pub value: RefCell<Option<T>>,
 }
 
 impl<'a, T: SensorValue> Sensor<'a, T> {
@@ -37,7 +37,7 @@ impl<'a, T: SensorValue> Sensor<'a, T> {
         native_unit_of_measurement: &'a str,
         device_class: DeviceClass,
         state_class: StateClass,
-        value: T,
+        value: Option<T>,
     ) -> Self {
         Self {
             name,
@@ -52,7 +52,7 @@ impl<'a, T: SensorValue> Sensor<'a, T> {
     /// Sets the current value of this sensor
     /// # Arguments
     /// * `value` - The new value to set
-    pub fn set_value(&self, value: T) {
+    pub fn set_value(&self, value: Option<T>) {
         *self.value.borrow_mut() = value;
     }
 }

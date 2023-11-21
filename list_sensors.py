@@ -46,7 +46,9 @@ for i in range(0, num_sensors):
     name = get_frame(ser, 0x0110, s_id_bytes).payload.decode()
     value = get_frame(ser, 0x0112, s_id_bytes).payload
 
-    if value[0] == 2:
+    if len(value) == 0:
+        value = None
+    elif value[0] == 2:
         value = struct.unpack("f", value[1:5])[0]
     elif value[0] == 1:
         value = int.from_bytes(value[1:5], byteorder="little")
