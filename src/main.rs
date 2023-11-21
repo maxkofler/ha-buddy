@@ -61,15 +61,13 @@ fn main() -> ! {
     let mut onewire_bus = OneWire::new(&mut onewire_pin, false);
 
     let sensor_temperatur = {
-        let value = ds18b20::measure_and_read(&mut onewire_bus).unwrap();
-
         Sensor::new(
             "Temperatur",
             "sensor_temperatur",
             "°C",
             homeassistant::entity::DeviceClass::Temperature,
             homeassistant::sensor::StateClass::Measurement,
-            value,
+            None,
         )
     };
 
@@ -135,7 +133,7 @@ fn main() -> ! {
 
                 // This will fire every second
                 if measure_in_progress {
-                    sensor_temperatur.set_value(ds18b20::read_temp(&mut onewire_bus).unwrap())
+                    sensor_temperatur.set_value(ds18b20::read_temp(&mut onewire_bus))
                 } else {
                     ds18b20::initiate_measuremet(&mut onewire_bus, false);
                 }
