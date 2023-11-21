@@ -11,8 +11,11 @@ from .const import *
 
 LOGGER = logging.getLogger(DOMAIN)
 
-
-async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Setup switch platform."""
 
     if hass.data[DOMAIN] is None:
@@ -22,6 +25,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry, async_add_devices
     LOGGER.info("Setting up switches")
 
     for device in hass.data[DOMAIN].devices:
-        async_add_devices(device.get_switches())
+        async_add_entities(device.get_switches())
 
     LOGGER.info("Done setting up switches")

@@ -17,7 +17,7 @@ from .python.connection import BuddyConnection
 LOGGER = logging.getLogger(DOMAIN)
 
 # For your initial PR, limit it to 1 platform.
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
 
 async def async_setup(hass: HomeAssistant, config):
