@@ -69,12 +69,14 @@ class BuddySensor(SensorEntity):
             f"  Value for sensor {hex(self._device.addr())}:{hex(self._sensor_id)}: {self._attr_native_value}"
         )
 
-    def get_value(self) -> int | str | float:
+    def get_value(self) -> None | int | str | float:
         value = self._device.get_device_payload(
             CMD_SENSOR_VALUE, self._sensor_id.to_bytes(4, byteorder="little")
         )
 
-        if value[0] == 2:
+        if len(value) == 0:
+            value = None
+        elif value[0] == 2:
             value = struct.unpack("f", value[1:5])[0]
         elif value[0] == 1:
             value = int.from_bytes(value[1:5], byteorder="little")
