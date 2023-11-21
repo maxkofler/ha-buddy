@@ -47,6 +47,11 @@ pub fn read_temp<'a, E: core::fmt::Debug>(ow: &mut OneWire<'a, E>) -> Option<f32
         return None;
     }
 
+    // If no sensor is connected, we read all '1's, so we error out (temperature would be at 4095.9375 - impossible)
+    if scratchpad[0] == 0xff && scratchpad[1] == 0xff {
+        return None;
+    }
+
     let t = u16::from_le_bytes([scratchpad[0], scratchpad[1]]) as f32 / 16.0;
 
     Some(t)
