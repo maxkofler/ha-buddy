@@ -1,6 +1,7 @@
 import serial
 import logging
 import time
+import threading
 
 from .frame import Frame, frame_decode, ExpectedBytesCountError, exec_command
 
@@ -12,6 +13,7 @@ class BuddyConnection:
         self._port = port
         self._domain = domain
         self._ser = None
+        self._lock = threading.Lock()
         self.devices = None
 
     def connect_and_scan(self) -> bool:
@@ -46,5 +48,6 @@ class BuddyConnection:
         return True
 
     def get_payload(self, client_addr: int, cmd: int, payload: bytes) -> bytes:
-        send_frame = Frame(0x0000, client_addr, cmd, payload)
-        return exec_command(self._ser, send_frame)
+        with self._lock:
+            send_frame = Frame(0x0000, client_addr, cmd, payload)
+            return exec_command(self._ser, send_frame)
